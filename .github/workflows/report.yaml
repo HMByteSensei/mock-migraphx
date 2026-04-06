@@ -163,6 +163,13 @@ jobs:
       #     echo "Simulating python comment script execution..."
       #     # python3 benchmark-utils/scripts/comment.py -t 'test-results' -n "${{ env.RESULT_NUMBER }}" $flagoptions -p
 
+      - name: Delete Later
+        run: |
+          echo "This step just for testing purposes..." > test-results/temp.md
+          echo "2nd line This step just for testing purposes..." >> test-results/temp.md
+          mkdir -p test-results/${{ env.ACCURACY_DIR }}
+          echo "Accuracy results would be here..." > test-results/${{ env.ACCURACY_DIR }}/results.md
+
       - name: Create a comment on PR
         if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
         uses: marocchino/sticky-pull-request-comment@v2.9.0
