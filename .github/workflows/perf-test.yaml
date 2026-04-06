@@ -133,45 +133,45 @@ jobs:
           ref: ${{ env.BRANCH_NAME }}
           repository: ${{ github.event.pull_request.head.repo.full_name  || github.repository }}
 
-      - name: Checkout utils
-        if: ${{ github.event.action != 'closed' }}
-        uses: actions/checkout@v4.3.1
-        with:
-          repository: ${{ inputs.benchmark_utils_repo }}
-          path: ${{ env.UTILS_DIR }}
-          token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+      # - name: Checkout utils
+      #   if: ${{ github.event.action != 'closed' }}
+      #   uses: actions/checkout@v4.3.1
+      #   with:
+      #     repository: ${{ inputs.benchmark_utils_repo }}
+      #     path: ${{ env.UTILS_DIR }}
+      #     token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
 
-      - name: Calculate HASH
-        if: ${{ github.event.action != 'closed' }}
-        id: hash
-        run: |
-          cd $GITHUB_WORKSPACE
-          git checkout $BRANCH_NAME
-          rocm_hash=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}} | cut -c 1-6)
-          echo "HASH=$rocm_hash" >> $GITHUB_ENV
+      # - name: Calculate HASH
+      #   if: ${{ github.event.action != 'closed' }}
+      #   id: hash
+      #   run: |
+      #     cd $GITHUB_WORKSPACE
+      #     git checkout $BRANCH_NAME
+      #     rocm_hash=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}} | cut -c 1-6)
+      #     echo "HASH=$rocm_hash" >> $GITHUB_ENV
       
-      - name: Get git SHA
-        if: ${{ github.event.action != 'closed' }}
-        id: git_sha
-        run: |
-          cd $GITHUB_WORKSPACE
-          git checkout $BRANCH_NAME
-          SHA=$(git log | head -5 | grep -m 1 "^commit" | awk '{print $2}' | cut -c 1-6)
-          echo "git_sha=$SHA" >> $GITHUB_OUTPUT
+      # - name: Get git SHA
+      #   if: ${{ github.event.action != 'closed' }}
+      #   id: git_sha
+      #   run: |
+      #     cd $GITHUB_WORKSPACE
+      #     git checkout $BRANCH_NAME
+      #     SHA=$(git log | head -5 | grep -m 1 "^commit" | awk '{print $2}' | cut -c 1-6)
+      #     echo "git_sha=$SHA" >> $GITHUB_OUTPUT
 
-      - name: Check image hash
-        if: ${{ github.event.action != 'closed' }}
-        id: check_hash
-        run: |
-          echo ${{ env.HASH }}
-          echo "DOCKERBASE=rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}" >> $GITHUB_ENV
-          if [ -z "$(docker images -q rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }})" ]; then
-            echo "Hashes not match, base ROCm image will be rebuilt"
-            echo "image=true" >> $GITHUB_ENV
-          else 
-            echo "Hashes match, continue with existing image"
-            echo "image=false" >> $GITHUB_ENV
-          fi
+      # - name: Check image hash
+      #   if: ${{ github.event.action != 'closed' }}
+      #   id: check_hash
+      #   run: |
+      #     echo ${{ env.HASH }}
+      #     echo "DOCKERBASE=rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}" >> $GITHUB_ENV
+      #     if [ -z "$(docker images -q rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }})" ]; then
+      #       echo "Hashes not match, base ROCm image will be rebuilt"
+      #       echo "image=true" >> $GITHUB_ENV
+      #     else 
+      #       echo "Hashes match, continue with existing image"
+      #       echo "image=false" >> $GITHUB_ENV
+      #     fi
 
       # - name: Rebuild ROCm base
       #   if: ${{ env.image == 'true' }}

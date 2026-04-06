@@ -91,13 +91,13 @@ jobs:
           path: migraphx-reports
           token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
       
-      - name: Checkout utils repo
-        if: steps.dl_art.outcome == 'success'
-        uses: actions/checkout@v4.3.1
-        with:
-          repository: ROCm/migraphx-benchmark-utils
-          path: benchmark-utils
-          token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+      # - name: Checkout utils repo
+      #   if: steps.dl_art.outcome == 'success'
+      #   uses: actions/checkout@v4.3.1
+      #   with:
+      #     repository: ROCm/migraphx-benchmark-utils
+      #     path: benchmark-utils
+      #     token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
 
       - name: Install python libraries
         if: steps.dl_art.outcome == 'success'
