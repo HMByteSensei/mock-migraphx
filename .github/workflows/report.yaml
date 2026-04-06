@@ -176,7 +176,7 @@ jobs:
         with:
           header: performance
           number: ${{ env.PR_NUMBER }}
-          GITHUB_TOKEN: ${{ github.token }} # ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
           path: test-results/temp.md
           recreate: true
 
