@@ -26,7 +26,7 @@ jobs:
         with:
           name: performance-run-data
           path: test-results
-          github-token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+          github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Extract context safely
