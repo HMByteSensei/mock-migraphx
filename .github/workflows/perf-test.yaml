@@ -89,28 +89,32 @@ jobs:
       
       - name: Get runner ID
         run: |
-          case "$RUNNER_NAME" in
-            "c13-38_0")
-              GPU=0
-              CPU="0-31"
-              ;;
-            "c13-38_4")
-              GPU=4
-              CPU="32-63"
-              ;;
-            *)
-              echo "Unknown RUNNER_ID: $RUNNER_NAME"
-              exit 1
-              ;;
-          esac
-          export GPU
-          export CPU
-          echo "GPU=$GPU" >> $GITHUB_ENV
-          echo "CPU=$CPU" >> $GITHUB_ENV
+          echo "GPU=0" >> $GITHUB_ENV
+          echo "CPU=0-31" >> $GITHUB_ENV
+          # case "$RUNNER_NAME" in
+          #   "c13-38_0")
+          #     GPU=0
+          #     CPU="0-31"
+          #     ;;
+          #   "c13-38_4")
+          #     GPU=4
+          #     CPU="32-63"
+          #     ;;
+          #   *)
+          #     echo "Unknown RUNNER_ID: $RUNNER_NAME"
+          #     exit 1
+          #     ;;
+          # esac
+          # export GPU
+          # export CPU
+          # echo "GPU=$GPU" >> $GITHUB_ENV
+          # echo "CPU=$CPU" >> $GITHUB_ENV
       
       - name: Set GPU parameters
         if: ${{ github.event.action != 'closed' }}
-        run: sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
+        run:
+          echo "Set GPU parameters step..." 
+          # sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
 
       - name: Update PR env # Needed to change
         if: ${{ github.event_name == 'pull_request_target'}}
@@ -169,35 +173,37 @@ jobs:
             echo "image=false" >> $GITHUB_ENV
           fi
 
-      - name: Rebuild ROCm base
-        if: ${{ env.image == 'true' }}
-        env:
-          ROCM_RELEASE: ${{ inputs.rocm_release }}
-          ROCM_BASE: ${{ env.ROCM_BASE }}
-          DOCKERIMAGE: rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}
-          BUILD_NAVI: 0
-          TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
-        run: |
-          cd $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts
-          ./build_migraphx_docker.sh ${{ inputs.benchmark_utils_repo }} ${{ github.event.pull_request.head.repo.full_name }} ${{ env.BRANCH_NAME }}
+      # - name: Rebuild ROCm base
+      #   if: ${{ env.image == 'true' }}
+      #   env:
+      #     ROCM_RELEASE: ${{ inputs.rocm_release }}
+      #     ROCM_BASE: ${{ env.ROCM_BASE }}
+      #     DOCKERIMAGE: rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}
+      #     BUILD_NAVI: 0
+      #     TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+      #   run: |
+      #     cd $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts
+      #     ./build_migraphx_docker.sh ${{ inputs.benchmark_utils_repo }} ${{ github.event.pull_request.head.repo.full_name }} ${{ env.BRANCH_NAME }}
 
-      - name: Docker build
-        if: ${{ github.event.action != 'closed' }}
-        run: >
-          cd $GITHUB_WORKSPACE/${{ env.UTILS_DIR }} && docker build --no-cache
-          --build-arg BRANCH=${{ env.BRANCH_NAME }} 
-          --build-arg DOCKERBASE=${{ env.DOCKERBASE }}
-          --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }}
-          --build-arg benchmark_utils_repo=${{ inputs.benchmark_utils_repo }}
-          -t "migraphx-rocm:${{ inputs.rocm_release }}-${{ steps.git_sha.outputs.git_sha }}" 
-          -f dockerfiles/Daily.Dockerfile .
+      # - name: Docker build
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run: >
+      #     cd $GITHUB_WORKSPACE/${{ env.UTILS_DIR }} && docker build --no-cache
+      #     --build-arg BRANCH=${{ env.BRANCH_NAME }} 
+      #     --build-arg DOCKERBASE=${{ env.DOCKERBASE }}
+      #     --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }}
+      #     --build-arg benchmark_utils_repo=${{ inputs.benchmark_utils_repo }}
+      #     -t "migraphx-rocm:${{ inputs.rocm_release }}-${{ steps.git_sha.outputs.git_sha }}" 
+      #     -f dockerfiles/Daily.Dockerfile .
 
       - name: Run performance tests
         if: ${{ github.event.action != 'closed' }}
         run: |
           # Ovo izbrisati i staviti umjesto ovog ovo ispod sto je zakomentarisano, ovo je samo simulacija docker exea
           mkdir -p ${{ env.TEST_RESULTS_PATH }}
-          echo "Simulating Docker exe..." > ${{ env.TEST_RESULTS_PATH }}/perf-test-data.txt
+          echo "Simulating Docker exe..." > ${{ env.TEST_RESULTS_PATH }}/perf-data.txt
+          mkdir -p ${{ env.TEST_RESULTS_PATH }}/accuracy2026
+          echo "Simulating accuracy data..." > ${{ env.TEST_RESULTS_PATH }}/accuracy2026/results.md
           if [ -f ./build_migraphx.sh ]; then
             chmod +x ./build_migraphx.sh
             GH_TOKEN=${{ secrets.gh_token }} ./build_migraphx.sh
@@ -265,139 +271,11 @@ jobs:
 
       - name: Reset GPU parameters to default
         if: ${{ github.event.action != 'closed' }}
-        run: sudo rocm-smi --device ${{ env.GPU }} --resetclocks
+        run:
+          echo "Reset GPU parameters to default step..." 
+          # sudo rocm-smi --device ${{ env.GPU }} --resetclocks
         
       - name: Clean closed PR data
         if: ${{ github.event.action == 'closed' }}
         run: |
           sudo rm -rf ${{ env.TEST_RESULTS_PATH }}
-
-
-      # - name: Checkout report's repo
-      #   if: ${{ github.event.action != 'closed' }}
-      #   uses: actions/checkout@v4.3.1
-      #   with:
-      #     repository: ${{ inputs.performance_reports_repo }}
-      #     path: ${{ env.REPORTS_DIR }}
-      #     token: ${{ secrets.gh_token }}
-
-      # - name: Execute report script
-      #   if: ${{ github.event_name == 'schedule' }}
-      #   run: |
-      #     python3 $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts/report.py \
-      #     -t '${{ env.TEST_RESULTS_PATH }}' \
-      #     -r '${{ env.REPORTS_PATH }}'
-      #     python3 $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts/history.py -n \
-      #     -t '${{ env.TEST_RESULTS_PATH }}' \
-      #     -r '${{ env.REPORTS_PATH }}'
-      #     cp -r ${{ env.REPORTS_PATH }}/results-* $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/nightly_reports/
-
-
-      # - name: Get latest accuracy results
-      #   id: accuracy
-      #   if: ${{ github.event.action != 'closed' }}
-      #   run: |
-      #     cd ${{ env.TEST_RESULTS_PATH }}
-      #     ACCURACY=$(ls -dt accuracy* | head -1)
-      #     echo "last_test=$ACCURACY" >> $GITHUB_OUTPUT
-      
-      # - name: Copy performance results to repo - develop - nightly or manual
-      #   if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
-      #   run: |
-      #     mkdir -p $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/performance_results/develop/${{ steps.git_sha.outputs.git_sha }}
-      #     cp -r ${{ env.TEST_RESULTS_PATH }}/perf-*/. $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/performance_results/develop/${{ steps.git_sha.outputs.git_sha }}
-      #     cp -r ${{ env.TEST_RESULTS_PATH }}/${{ steps.accuracy.outputs.last_test }}/. $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/performance_results/develop/${{ steps.git_sha.outputs.git_sha }}/accuracy_logs
-
-  
-      # - name: Copy performance results to repo - PRs
-      #   if: ${{ github.event_name != 'schedule' && github.event_name == 'pull_request_target' && github.event.action != 'closed'}}
-      #   run: | 
-      #     mkdir -p $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/performance_results/PRs/PR-$PR_ID/${{ steps.git_sha.outputs.git_sha }}
-      #     cp -r ${{ env.TEST_RESULTS_PATH }}/perf-*/. $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/performance_results/PRs/PR-$PR_ID/${{ steps.git_sha.outputs.git_sha }}
-      #     cp -r ${{ env.TEST_RESULTS_PATH }}/${{ steps.accuracy.outputs.last_test }}/. $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/performance_results/PRs/PR-$PR_ID/${{ steps.git_sha.outputs.git_sha }}/accuracy_logs
-        
-      # - name: Push results to repo
-      #   continue-on-error: true
-      #   if: ${{ github.event.action != 'closed' }}
-      #   run: |
-      #     cd $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
-      #     git add .
-      #     git config --local user.email github-actions@github.com
-      #     git config --local user.name github-actions
-      #     git commit -m "Performance results run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -a
-      #     git push
-
-      # - name: Execute comment script
-      #   id: auto_comment
-      #   if: ${{ github.event_name != 'schedule' && github.event_name == 'pull_request_target' && github.event.action != 'closed'}}
-      #   run: |
-      #     if [ ${{ inputs.flags }} == "-r" ]; then
-      #       flagoptions="${{ inputs.flags }} $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts/"
-      #     else
-      #       flagoptions="${{ inputs.flags }}"
-      #     fi 
-      #     python3 $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts/comment.py -t ${TEST_RESULTS_PATH//-$PR_ID/} -n ${{ inputs.result_number }} $flagoptions -p
-
-      # - name: Create a comment on PR
-      #   if: ${{ github.event_name != 'schedule' && github.event_name == 'pull_request_target' && github.event.action != 'closed'}}
-      #   uses: marocchino/sticky-pull-request-comment@v2.9.0
-      #   with:
-      #     header: performance
-      #     GITHUB_TOKEN: ${{ secrets.gh_token }}
-      #     path: ${{ github.workspace }}/${{ env.UTILS_DIR }}/scripts/temp.md
-      #     recreate: true
-
-      # - name: Create accuracy comment on PR
-      #   if: ${{ github.event_name != 'schedule' && github.event_name == 'pull_request_target' && github.event.action != 'closed'}}
-      #   uses: marocchino/sticky-pull-request-comment@v2.9.0
-      #   with:
-      #     header: accuracy
-      #     GITHUB_TOKEN: ${{ secrets.gh_token }}
-      #     path: ${{ env.TEST_RESULTS_PATH }}/${{ steps.accuracy.outputs.last_test }}/results.md
-      #     recreate: true
-
-      # - name: Get latest report
-      #   id: last_report
-      #   if: ${{ github.event_name == 'schedule' }}
-      #   run: |
-      #     cd ${{ env.REPORTS_PATH }}
-      #     latest="$(readlink -f $(ls -tp | grep -v /$ | head -1))"
-      #     echo "latest=$latest" >> $GITHUB_OUTPUT
-
-      # - name: Send mail
-      #   if: ${{ github.event_name == 'schedule' }}
-      #   uses: dawidd6/action-send-mail@v3
-      #   with:
-      #     server_address: smtp.gmail.com
-      #     server_port: 465
-      #     username: ${{ secrets.mail_user }}
-      #     password: ${{ secrets.mail_pass }}
-      #     subject: ${{ env.MAIL_SUBJECT }}
-      #     to: ${{ env.MAIL_TO }}
-      #     from: ${{ env.MAIL_FROM }}
-      #     secure: true
-      #     body: ${{ env.MAIL_BODY }}
-      #     cc: ${{ env.MAIL_CC }}
-      #     ignore_cert: true
-      #     attachments: ${{ steps.last_report.outputs.latest}}
-      #     priority: normal
-
-      # - name : Checkout for backup
-      #   if: ${{ github.event_name == 'schedule' }}
-      #   uses: actions/checkout@v4.3.1
-      #   with:
-      #     repository: ${{ inputs.performance_backup_repo }}
-      #     path: ${{ env.PERFORMANCE_DIR }}
-      #     token: ${{ secrets.gh_token }}
-
-      # - name: Backup
-      #   if: ${{ github.event_name == 'schedule' }}
-      #   run : |
-      #     cp -r ${{ env.TEST_RESULTS_PATH }}/perf-* $GITHUB_WORKSPACE/${{ env.PERFORMANCE_DIR }}/${{ inputs.organization }}
-      #     cd $GITHUB_WORKSPACE/${{ env.PERFORMANCE_DIR }}
-      #     git add .
-      #     git status
-      #     git config --local user.email github-actions@github.com
-      #     git config --local user.name github-actions
-      #     git commit -m "Backup latest perf results" -a
-      #     git push
