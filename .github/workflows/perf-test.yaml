@@ -207,6 +207,16 @@ jobs:
       #     --workdir /migraphx/sh
       #     migraphx-rocm:${{ inputs.rocm_release }}-${{ steps.git_sha.outputs.git_sha }} /bin/bash -c "./build_migraphx.sh && ./performance_tests.sh ${{ inputs.model_timeout }}"
 
+      - name: Mock perf test output
+        if: ${{ github.event.action != 'closed' }}
+        run: |
+          mkdir -p ${{ env.TEST_RESULTS_PATH }}
+          mkdir -p ${{ env.TEST_RESULTS_PATH }}/perf-data-123
+          echo "Simulation data" > ${{ env.TEST_RESULTS_PATH }}/perf-data-123/results.txt
+          mkdir -p ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123
+          echo "Simulation accuracy" > ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123/results.md
+          echo "Dummy comment" > ${{ env.TEST_RESULTS_PATH }}/temp.md
+
       - name: Save execution state & smuggle payload
         if: ${{ github.event.action != 'closed' }}
         env:
@@ -215,11 +225,19 @@ jobs:
           ORGANIZATION_INPUT: ${{ inputs.organization }}
         run: |
           mkdir -p ${{ env.TEST_RESULTS_PATH }}
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}/perf-data-123
-          echo "Simulation data" > ${{ env.TEST_RESULTS_PATH }}/perf-data-123/results.txt
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123
-          echo "Simulation accuracy" > ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123/results.md
-          echo "Dummy comment" > ${{ env.TEST_RESULTS_PATH }}/temp.md
+          if [[ "${{ github.event_name }}" == "pull_request_target" ]]; then
+            echo "${{ github.event.number }}" > ${{ env.TEST_RESULTS_PATH }}/pr_number.txt
+          fi
+
+          echo "RESULT_NUMBER=${RESULT_NUMBER_INPUT:-10}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
+          echo "FLAGS=${FLAGS_INPUT:--r}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
+          echo "ORGANIZATION=${ORGANIZATION_INPUT:-AMD}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
+          echo "GIT_SHA=${{ steps.git_sha.outputs.git_sha }}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
+
+          if ls -dt ${{ env.TEST_RESULTS_PATH }}/accuracy* >/dev/null 2>&1; then
+            ACCURACY_DIR=$(ls -dt ${{ env.TEST_RESULTS_PATH }}/accuracy* | head -1 | xargs basename)
+            echo "ACCURACY_DIR=$ACCURACY_DIR" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
+          fi
 
       - name: Upload Artifacts
         if: ${{ github.event.action != 'closed' }}
