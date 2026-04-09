@@ -97,8 +97,8 @@ jobs:
         if: steps.dl_art.outcome == 'success'
         run: pip install tabulate==0.8.9 pandas==1.4.2 numpy==1.22.3 openpyxl==3.1.2
 
-      - name: Execute report script
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
+      # - name: Execute report script
+      #   if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
         # run: |
         #   mkdir -p ${{ env.REPORTS_PATH }}
         #   python3 benchmark-utils/scripts/report.py -t 'test-results' -r ${{ env.REPORTS_PATH }}
@@ -137,8 +137,8 @@ jobs:
           git commit -m "Performance results run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -a || true
           git push
 
-      - name: Execute comment script
-        if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
+      # - name: Execute comment script
+      #   if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
         # run: |
         #   if [ ${{ env.FLAGS }} == "-r" ]; then
         #     flagoptions="-r benchmark-utils/scripts/"
