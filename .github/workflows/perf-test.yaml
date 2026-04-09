@@ -78,7 +78,7 @@ jobs:
           | jq -s '.[2].id' || true)
           docker stop perf-test-$cancel_id || true
       
-      - name: Get runner ID
+      # - name: Get runner ID
         run: |
           case "$RUNNER_NAME" in
             "c13-38_0")
@@ -220,7 +220,7 @@ jobs:
           mkdir -p ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123
           echo "Simulation accuracy" > ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123/results.md
           echo "Dummy comment" > ${{ env.TEST_RESULTS_PATH }}/temp.md
-          
+
       - name: Upload Artifacts
         if: ${{ github.event.action != 'closed' }}
         uses: actions/upload-artifact@v4
