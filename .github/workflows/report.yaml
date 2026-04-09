@@ -12,7 +12,7 @@ env:
   PERFORMANCE_DIR: performance-backup
   REPORTS_PATH: temp_reports
 
-permissions>
+permissions:
   contents: write
   pull-requests: write
   actions: read
@@ -70,6 +70,12 @@ jobs:
               echo "ORGANIZATION=AMD" >> $GITHUB_ENV
             fi
           fi
+          echo "PR NUMBER: $PR_NUMBER"
+          echo "RESULT NUMBER: $RESULT_NUMBER"
+          echo "FLAGS: $FLAGS"
+          echo "ACCURACY_DIR: $ACCURACY_DIR"
+          echo "GIT_SHA: $GIT_SHA"
+          echo "ORGANIZATION: $ORGANIZATION"
 
       - name: Update Mailing list based on organization
         if: steps.dl_art.outcome == 'success'
