@@ -12,6 +12,11 @@ env:
   PERFORMANCE_DIR: performance-backup
   REPORTS_PATH: temp_reports
 
+permissions>
+  contents: write
+  pull-requests: write
+  actions: read
+
 jobs:
   post-report:
     runs-on: ubuntu-latest
