@@ -8,11 +8,9 @@ env:
   REPORTS_DIR: migraphx-reports
   MAIL_TO: dl.dl-migraphx-perfrun@amd.com
   MAIL_CC: igor.mirosavljevic@htecgroup.com
-  MAIL_FROM: GH Actions
-  MAIL_SUBJECT: Nightly Performance run
   MAIL_BODY: Scheduled Performance test run on develop branch
-  REPORTS_PATH: /usr/share/migraphx/${{ inputs.organization }}/reports
   PERFORMANCE_DIR: performance-backup
+  REPORTS_PATH: temp_reports
 
 jobs:
   post-report:
@@ -43,7 +41,7 @@ jobs:
             if [[ "$RESULT_NUMBER" =~ ^[0-9]+$ ]]; then
               echo "RESULT_NUMBER=$RESULT_NUMBER" >> $GITHUB_ENV
             fi
-            FLAGS=$(grep '^FLAGS=' test-results/env_vars.env | cut -d= -f2-)
+            FLAGS=$(grep '^FLAGS=' test-results/env_vars.env | cut -d= -f2)
             case "$FLAGS" in
               "-r"|"-m"|"-s")
                 echo "FLAGS=$FLAGS" >> $GITHUB_ENV
@@ -52,7 +50,7 @@ jobs:
                 echo "FLAGS=-r" >> $GITHUB_ENV
                 ;;
             esac
-            ACCURACY_DIR=$(grep '^ACCURACY_DIR=' test-results/env_vars.env | cut -d= -f2-)
+            ACCURACY_DIR=$(grep '^ACCURACY_DIR=' test-results/env_vars.env | cut -d= -f2)
             if [[ "$ACCURACY_DIR" =~ ^accuracy ]]; then
               echo "ACCURACY_DIR=$ACCURACY_DIR" >> $GITHUB_ENV
             fi
@@ -69,7 +67,6 @@ jobs:
           fi
 
       - name: Update Mailing list based on organization
-        # if: ${{ inputs.organization == 'HTEC' }}
         if: steps.dl_art.outcome == 'success'
         run: |
           if [ "${{ env.ORGANIZATION }}" == "HTEC" ]; then
@@ -80,95 +77,75 @@ jobs:
             echo "MAIL_CC=igor.mirosavljevic@htecgroup.com" >> $GITHUB_ENV
           fi        
         
-      # - name: Checkout report's repo
-      #   # if: ${{ github.event.action != 'closed' }}
-      #   if: steps.dl_art.outcome == 'success'
-      #   uses: actions/checkout@v4.3.1
-      #   with:
-      #     # repository: ${{ inputs.performance_reports_repo }}
-      #     # path: ${{ env.REPORTS_DIR }}
-      #     repository: ROCm/migraphx-reports
-      #     path: migraphx-reports
-      #     token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+      - name: Checkout report's repo
+        if: steps.dl_art.outcome == 'success'
+        uses: actions/checkout@v4.3.1
+        with:
+          repository: Muhamed-Husic/mock-migraphx
+          path: ${{ env.REPORTS_DIR }}
+          token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
       
-      # - name: Checkout utils repo
-      #   if: steps.dl_art.outcome == 'success'
-      #   uses: actions/checkout@v4.3.1
-      #   with:
-      #     repository: ROCm/migraphx-benchmark-utils
-      #     path: benchmark-utils
-      #     token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+      - name: Checkout utils repo
+        if: steps.dl_art.outcome == 'success'
+        uses: actions/checkout@v4.3.1
+        with:
+          repository: Muhamed-Husic/mock-migraphx
+          path: benchmark-utils
+          token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
 
-      # - name: Install python libraries
-      #   if: steps.dl_art.outcome == 'success'
-      #   run: pip install tabulate==0.8.9 pandas==1.4.2 numpy==1.22.3 openpyxl==3.1.2
+      - name: Install python libraries
+        if: steps.dl_art.outcome == 'success'
+        run: pip install tabulate==0.8.9 pandas==1.4.2 numpy==1.22.3 openpyxl==3.1.2
 
-      # - name: Execute report script
-      #   if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
-      #   run: |
-      #     mkdir -p temp_reports
-      #     echo "MOCKING python report generation..."
-      #     # python3 benchmark-utils/scripts/report.py -t 'test-results' -r 'temp_reports'
-      #     # python3 benchmark-utils/scripts/history.py -n -t 'test-results' -r 'temp_reports'
-      #     mkdir -p migraphx-reports/nightly_reports
-      #     cp -r temp_reports/results-* migraphx-reports/nightly_reports/ || true
+      - name: Execute report script
+        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
+        # run: |
+        #   mkdir -p ${{ env.REPORTS_PATH }}
+        #   python3 benchmark-utils/scripts/report.py -t 'test-results' -r ${{ env.REPORTS_PATH }}
+        #   python3 benchmark-utils/scripts/history.py -n -t 'test-results' -r ${{ env.REPORTS_PATH }}
+        #   mkdir -p ${{ env.REPORTS_DIR }}/nightly_reports
+        #   cp -r ${{ env.REPORTS_PATH }}/results-* ${{ env.REPORTS_DIR }}/nightly_reports/ || true
 
-      #     # python3 $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts/report.py \
-      #     # -t '${{ env.TEST_RESULTS_PATH }}' \
-      #     # -r '${{ env.REPORTS_PATH }}'
-      #     # python3 $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts/history.py -n \
-      #     # -t '${{ env.TEST_RESULTS_PATH }}' \
-      #     # -r '${{ env.REPORTS_PATH }}'
-      #     # cp -r ${{ env.REPORTS_PATH }}/results-* $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/nightly_reports/
-
-      # - name: Copy performance results to PR history
-      #   if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule' && env.PR_NUMBER && env.PR_NUMBER != ''
-      #   run: |
-      #     mkdir -p migraphx-reports/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}
-      #     cp -r test-results/perf-*/. migraphx-reports/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }} || true
-      #     if [ "${{ env.ACCURACY_DIR }}" != "" ]; then
-      #       mkdir -p migraphx-reports/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs
-      #       cp -r test-results/${{ env.ACCURACY_DIR }}/. migraphx-reports/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs || true
-      #     fi
-
-      # - name: Copy performance results to repo - develop - nightly or manual
-      #   if: steps.dl_art.outcome == 'success' && (github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch')
-      #   run: |
-      #     mkdir -p migraphx-reports/performance_results/develop/${{ env.GIT_SHA }}
-      #     cp -r test-results/perf-*/. migraphx-reports/performance_results/develop/${{ env.GIT_SHA }} || true
-      #     if [ "${{ env.ACCURACY_DIR }}" != "" ]; then
-      #       mkdir -p migraphx-reports/performance_results/develop/${{ env.GIT_SHA }}/accuracy_logs
-      #       cp -r test-results/${{ env.ACCURACY_DIR }}/. migraphx-reports/performance_results/develop/${{ env.GIT_SHA }}/accuracy_logs || true
-      #     fi
-
-      # - name: Push results to repo
-      #   if: steps.dl_art.outcome == 'success'
-      #   continue-on-error: true
-      #   run: |
-      #     cd migraphx-reports
-      #     git add .
-      #     git config --local user.email github-actions@github.com
-      #     git config --local user.name github-actions
-      #     git commit -m "Performance results run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -a || true
-      #     git push
-
-      # - name: Execute comment script
-      #   if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
-      #   run: |
-      #     if [ ${{ env.FLAGS }} == "-r" ]; then
-      #       flagoptions="-r benchmark-utils/scripts/"
-      #     else
-      #       flagoptions="${{ env.FLAGS }}"
-      #     fi 
-      #     echo "Simulating python comment script execution..."
-      #     # python3 benchmark-utils/scripts/comment.py -t 'test-results' -n "${{ env.RESULT_NUMBER }}" $flagoptions -p
-
-      - name: Delete Later
+      - name: Copy performance results to repo - PRs
+        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER && env.PR_NUMBER != ''
         run: |
-          echo "This step just for testing purposes..." > test-results/temp.md
-          echo "2nd line This step just for testing purposes..." >> test-results/temp.md
-          mkdir -p test-results/${{ env.ACCURACY_DIR }}
-          echo "Accuracy results would be here..." > test-results/${{ env.ACCURACY_DIR }}/results.md
+          mkdir -p ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}
+          cp -r test-results/perf-*/. ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }} || true
+          if [ "${{ env.ACCURACY_DIR }}" != "" ]; then
+            mkdir -p ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs
+            cp -r test-results/${{ env.ACCURACY_DIR }}/. ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs || true
+          fi
+
+      - name: Copy performance results to repo - develop - nightly or manual
+        if: steps.dl_art.outcome == 'success' && (github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch')
+        run: |
+          mkdir -p ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }}
+          cp -r test-results/perf-*/. ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }} || true
+          if [ "${{ env.ACCURACY_DIR }}" != "" ]; then
+            mkdir -p ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }}/accuracy_logs
+            cp -r test-results/${{ env.ACCURACY_DIR }}/. ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }}/accuracy_logs || true
+          fi
+
+      - name: Push results to repo
+        if: steps.dl_art.outcome == 'success'
+        continue-on-error: true
+        run: |
+          cd ${{ env.REPORTS_DIR }}
+          git add .
+          git config --local user.email github-actions@github.com
+          git config --local user.name github-actions
+          git commit -m "Performance results run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -a || true
+          git push
+
+      - name: Execute comment script
+        if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
+        # run: |
+        #   if [ ${{ env.FLAGS }} == "-r" ]; then
+        #     flagoptions="-r benchmark-utils/scripts/"
+        #   else
+        #     flagoptions="${{ env.FLAGS }}"
+        #   fi
+        #   python3 benchmark-utils/scripts/comment.py -t 'test-results' -n "${{ env.RESULT_NUMBER }}" $flagoptions -p
 
       - name: Create a comment on PR
         if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
@@ -194,29 +171,29 @@ jobs:
         if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
         uses: actions/checkout@v4.3.1
         with:
-          repository: migraphx-benchmark/performance-backup
-          path: performance-backup
+          repository: Muhamed-Husic/mock-migraphx
+          path: ${{ env.PERFORMANCE_DIR }}
           token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
 
-      # - name: Backup
-      #   if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
-      #   run : |
-      #     mkdir -p performance-backup/${{ env.ORGANIZATION }}
-      #     cp -r test-results/perf-* performance-backup/${{ env.ORGANIZATION }} || true
-      #     cd performance-backup
-      #     git add .
-      #     git status
-      #     git config --local user.email github-actions@github.com
-      #     git config --local user.name github-actions
-      #     git commit -m "Backup latest perf results" -a || true
-      #     git push
+      - name: Backup
+        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
+        run : |
+          mkdir -p ${{ env.PERFORMANCE_DIR }}/${{ env.ORGANIZATION }}
+          cp -r test-results/perf-* ${{ env.PERFORMANCE_DIR }}/${{ env.ORGANIZATION }} || true
+          cd ${{ env.PERFORMANCE_DIR }}
+          git add .
+          git status
+          git config --local user.email github-actions@github.com
+          git config --local user.name github-actions
+          git commit -m "Backup latest perf results" -a || true
+          git push
 
       
       - name: Get latest report
         id: last_report
         if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
         run: |
-          cd migraphx-reports/nightly_reports
+          cd ${{ env.REPORTS_DIR }}/nightly_reports
           latest="$(readlink -f $(ls -tp | grep -v /$ | head -1))"
           echo "latest=$latest" >> $GITHUB_OUTPUT
       
@@ -228,7 +205,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "Nightly Performance Report - ${{ env.ORGANIZATION }} - ${{ env.GIT_SHA }}"
+          subject: "Nightly Performance run"
           to: ${{ env.MAIL_TO }}
           from: "GH Actions"
           secure: true

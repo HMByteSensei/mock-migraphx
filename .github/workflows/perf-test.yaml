@@ -39,15 +39,6 @@ on:
       BENCHMARK_UTILS_READ_TOKEN:
         description: Token with read access to benchmark utils repo
         required: true
-      # gh_token:
-      #   description: 'Github Access Token'
-      #   required: true
-      # mail_user:
-      #   description: 'Email username'
-      #   required: true
-      # mail_pass:
-      #   description: 'Email password'
-      #   required: true
 
 env:
   UTILS_DIR: benchmark-utils
@@ -61,7 +52,7 @@ env:
 jobs:
   performance_test:
     name: MIGraphX Performance
-    runs-on: ubuntu-latest # [self-hosted, performance]
+    runs-on: ubuntu-latest # [self-hosted, "linux-migraphx-mi250-1"]
     outputs:
       git_sha: ${{ steps.git_sha.outputs.git_sha }}
     steps:
@@ -89,41 +80,40 @@ jobs:
       
       - name: Get runner ID
         run: |
-          echo "GPU=0" >> $GITHUB_ENV
-          echo "CPU=0-31" >> $GITHUB_ENV
-          # case "$RUNNER_NAME" in
-          #   "c13-38_0")
-          #     GPU=0
-          #     CPU="0-31"
-          #     ;;
-          #   "c13-38_4")
-          #     GPU=4
-          #     CPU="32-63"
-          #     ;;
-          #   *)
-          #     echo "Unknown RUNNER_ID: $RUNNER_NAME"
-          #     exit 1
-          #     ;;
-          # esac
-          # export GPU
-          # export CPU
-          # echo "GPU=$GPU" >> $GITHUB_ENV
-          # echo "CPU=$CPU" >> $GITHUB_ENV
+          case "$RUNNER_NAME" in
+            "c13-38_0")
+              GPU=0
+              CPU="0-31"
+              ;;
+            "c13-38_4")
+              GPU=4
+              CPU="32-63"
+              ;;
+            "linux-migraphx-mi250-1")
+              GPU=0
+              CPU="0-31"
+              ;;
+            *)
+              echo "Unknown RUNNER_ID: $RUNNER_NAME"
+              exit 1
+              ;;
+          esac
+          export GPU
+          export CPU
+          echo "GPU=$GPU" >> $GITHUB_ENV
+          echo "CPU=$CPU" >> $GITHUB_ENV
       
-      - name: Set GPU parameters
-        if: ${{ github.event.action != 'closed' }}
-        run:
-          echo "Set GPU parameters step..." 
-          # sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
+      # - name: Set GPU parameters
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run:
+      #     sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
 
-      - name: Update PR env # Needed to change
+      - name: Update PR env
         if: ${{ github.event_name == 'pull_request_target'}}
-        env:
-          HEAD_REF_SAFE: ${{ github.head_ref }}
         run: |
-          sanitized_branch_name=$(printf "%s\n" "$HEAD_REF_SAFE" | sed 's/[^a-zA-Z0-9._\/]/-/g')
+          sanitized_branch_name=$(echo "${{ github.head_ref }}" | sed 's/[^a-zA-Z0-9._\/]/-/g')
           echo "BRANCH_NAME=$sanitized_branch_name" >> $GITHUB_ENV
-          echo "TEST_RESULTS_PATH=$(echo "$TEST_RESULTS_PATH-${{ github.event.number }}")" >> $GITHUB_ENV
+          echo "TEST_RESULTS_PATH=$(echo "$TEST_RESULTS_PATH-$PR_ID")" >> $GITHUB_ENV
 
       - name: Checkout code
         if: ${{ github.event.action != 'closed' }}
@@ -131,47 +121,47 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.BRANCH_NAME }}
-          repository: ${{ github.event.pull_request.head.repo.full_name  || github.repository }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
 
-      # - name: Checkout utils
-      #   if: ${{ github.event.action != 'closed' }}
-      #   uses: actions/checkout@v4.3.1
-      #   with:
-      #     repository: ${{ inputs.benchmark_utils_repo }}
-      #     path: ${{ env.UTILS_DIR }}
-      #     token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+      - name: Checkout utils
+        if: ${{ github.event.action != 'closed' }}
+        uses: actions/checkout@v4.3.1
+        with:
+          repository: ${{ inputs.benchmark_utils_repo }}
+          path: ${{ env.UTILS_DIR }}
+          token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
 
-      # - name: Calculate HASH
-      #   if: ${{ github.event.action != 'closed' }}
-      #   id: hash
-      #   run: |
-      #     cd $GITHUB_WORKSPACE
-      #     git checkout $BRANCH_NAME
-      #     rocm_hash=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}} | cut -c 1-6)
-      #     echo "HASH=$rocm_hash" >> $GITHUB_ENV
+      - name: Calculate HASH
+        if: ${{ github.event.action != 'closed' }}
+        id: hash
+        run: |
+          cd $GITHUB_WORKSPACE
+          git checkout $BRANCH_NAME
+          rocm_hash=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}} | cut -c 1-6)
+          echo "HASH=$rocm_hash" >> $GITHUB_ENV
       
-      # - name: Get git SHA
-      #   if: ${{ github.event.action != 'closed' }}
-      #   id: git_sha
-      #   run: |
-      #     cd $GITHUB_WORKSPACE
-      #     git checkout $BRANCH_NAME
-      #     SHA=$(git log | head -5 | grep -m 1 "^commit" | awk '{print $2}' | cut -c 1-6)
-      #     echo "git_sha=$SHA" >> $GITHUB_OUTPUT
+      - name: Get git SHA
+        if: ${{ github.event.action != 'closed' }}
+        id: git_sha
+        run: |
+          cd $GITHUB_WORKSPACE
+          git checkout $BRANCH_NAME
+          SHA=$(git log | head -5 | grep -m 1 "^commit" | awk '{print $2}' | cut -c 1-6)
+          echo "git_sha=$SHA" >> $GITHUB_OUTPUT
 
-      # - name: Check image hash
-      #   if: ${{ github.event.action != 'closed' }}
-      #   id: check_hash
-      #   run: |
-      #     echo ${{ env.HASH }}
-      #     echo "DOCKERBASE=rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}" >> $GITHUB_ENV
-      #     if [ -z "$(docker images -q rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }})" ]; then
-      #       echo "Hashes not match, base ROCm image will be rebuilt"
-      #       echo "image=true" >> $GITHUB_ENV
-      #     else 
-      #       echo "Hashes match, continue with existing image"
-      #       echo "image=false" >> $GITHUB_ENV
-      #     fi
+      - name: Check image hash
+        if: ${{ github.event.action != 'closed' }}
+        id: check_hash
+        run: |
+          echo ${{ env.HASH }}
+          echo "DOCKERBASE=rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}" >> $GITHUB_ENV
+          if [ -z "$(docker images -q rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }})" ]; then
+            echo "Hashes not match, base ROCm image will be rebuilt"
+            echo "image=true" >> $GITHUB_ENV
+          else 
+            echo "Hashes match, continue with existing image"
+            echo "image=false" >> $GITHUB_ENV
+          fi
 
       # - name: Rebuild ROCm base
       #   if: ${{ env.image == 'true' }}
@@ -196,20 +186,9 @@ jobs:
       #     -t "migraphx-rocm:${{ inputs.rocm_release }}-${{ steps.git_sha.outputs.git_sha }}" 
       #     -f dockerfiles/Daily.Dockerfile .
 
-      - name: Run performance tests
-        if: ${{ github.event.action != 'closed' }}
-        run: |
-          # Ovo izbrisati i staviti umjesto ovog ovo ispod sto je zakomentarisano, ovo je samo simulacija docker exea
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}
-          echo "Simulating Docker exe..." > ${{ env.TEST_RESULTS_PATH }}/perf-data.txt
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}/accuracy2026
-          echo "Simulating accuracy data..." > ${{ env.TEST_RESULTS_PATH }}/accuracy2026/results.md
-          if [ -f ./build_migraphx.sh ]; then
-            chmod +x ./build_migraphx.sh
-            GH_TOKEN=${{ secrets.gh_token }} ./build_migraphx.sh
-          else
-            echo "No scr found"
-          fi
+      # - name: Run performance tests
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run: >
       #     docker run
       #     --name perf-test-$GITHUB_RUN_ID
       #     --cpuset-cpus=${{ env.CPU }}
@@ -236,20 +215,12 @@ jobs:
           ORGANIZATION_INPUT: ${{ inputs.organization }}
         run: |
           mkdir -p ${{ env.TEST_RESULTS_PATH }}
-          if [[ "${{ github.event_name }}" == "pull_request_target" ]]; then
-            echo "${{ github.event.number }}" > ${{ env.TEST_RESULTS_PATH }}/pr_number.txt
-          fi
-
-          echo "RESULT_NUMBER=${RESULT_NUMBER_INPUT:-10}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
-          echo "FLAGS=${FLAGS_INPUT:--r}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
-          echo "ORGANIZATION=${ORGANIZATION_INPUT:-AMD}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
-          echo "GIT_SHA=${{ steps.git_sha.outputs.git_sha }}" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
-
-          if ls -dt ${{ env.TEST_RESULTS_PATH }}/accuracy* >/dev/null 2>&1; then
-            ACCURACY_DIR=$(ls -dt ${{ env.TEST_RESULTS_PATH }}/accuracy* | head -1 | xargs basename)
-            echo "ACCURACY_DIR=$ACCURACY_DIR" >> ${{ env.TEST_RESULTS_PATH }}/env_vars.env
-          fi
-
+          mkdir -p ${{ env.TEST_RESULTS_PATH }}/perf-data-123
+          echo "Simulation data" > ${{ env.TEST_RESULTS_PATH }}/perf-data-123/results.txt
+          mkdir -p ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123
+          echo "Simulation accuracy" > ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123/results.md
+          echo "Dummy comment" > ${{ env.TEST_RESULTS_PATH }}/temp.md
+          
       - name: Upload Artifacts
         if: ${{ github.event.action != 'closed' }}
         uses: actions/upload-artifact@v4
@@ -257,23 +228,21 @@ jobs:
           name: performance-run-data
           path: ${{ env.TEST_RESULTS_PATH }}
 
-      - name: Delete old images/containers
-        if: ${{ github.event_name == 'schedule' }}
-        run: |
-          docker container prune -f  || true
-          if [[ $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}') ]]; then
-            docker rmi -f $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}')  || true
-          fi
-          if [[ $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 week ago' +%Y-%m-%d)" '$2 < date {print $1}') ]]; then
-            docker rmi -f $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '2 weeks ago' +%Y-%m-%d)" '$2 < date {print $1}') || true
-          fi
-          docker image prune -f  || true
+      # - name: Delete old images/containers
+      #   if: ${{ github.event_name == 'schedule' }}
+      #   run: |
+      #     docker container prune -f  || true
+      #     if [[ $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}') ]]; then
+      #       docker rmi -f $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}')  || true
+      #     fi
+      #     if [[ $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 week ago' +%Y-%m-%d)" '$2 < date {print $1}') ]]; then
+      #       docker rmi -f $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '2 weeks ago' +%Y-%m-%d)" '$2 < date {print $1}') || true
+      #     fi
+      #     docker image prune -f  || true
 
-      - name: Reset GPU parameters to default
-        if: ${{ github.event.action != 'closed' }}
-        run:
-          echo "Reset GPU parameters to default step..." 
-          # sudo rocm-smi --device ${{ env.GPU }} --resetclocks
+      # - name: Reset GPU parameters to default
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run: sudo rocm-smi --device ${{ env.GPU }} --resetclocks
         
       - name: Clean closed PR data
         if: ${{ github.event.action == 'closed' }}
