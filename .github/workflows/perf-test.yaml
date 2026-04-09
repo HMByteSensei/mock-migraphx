@@ -127,9 +127,9 @@ jobs:
         if: ${{ github.event.action != 'closed' }}
         uses: actions/checkout@v4.3.1
         with:
-          repository: ${{ inputs.benchmark_utils_repo }}
+          repository: Muhamed-Husic/mock-migraphx
           path: ${{ env.UTILS_DIR }}
-          token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+          # token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
 
       - name: Calculate HASH
         if: ${{ github.event.action != 'closed' }}
