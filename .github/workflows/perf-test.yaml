@@ -246,7 +246,6 @@ jobs:
           name: performance-run-data
           path: |
             ${{ env.TEST_RESULTS_PATH }}
-            ${{ env.TEST_RESULTS_PATH }}
             pr_number.txt
             env_vars.env
 
