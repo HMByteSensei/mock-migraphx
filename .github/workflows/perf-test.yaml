@@ -35,18 +35,6 @@ on:
         type: string
         description: Repository for backup
         required: true
-      model_path:
-        type: string
-        description: Host path to NFS-backed models (ARC runner mount)
-        required: false
-      perf_workspace:
-        type: string
-        description: Writable NFS-backed workspace for reports/scratch (ARC runner mount)
-        required: false
-      runs_on:
-        type: string
-        description: Self-hosted runner label (ARC scale set linux-migraphx-mi250-1)
-        required: false
     secrets:
       BENCHMARK_UTILS_READ_TOKEN:
         description: Token with read access to benchmark utils repo
@@ -58,8 +46,8 @@ env:
   MIOPENTUNE: miopen-dbs/rocm${{ inputs.rocm_release }}
   PR_ID: ${{ github.event.number }}
   BRANCH_NAME: develop
-  TEST_RESULTS_PATH: ${{ inputs.perf_workspace }}/${{ inputs.organization }}/test-results
-  MIGRAPHX_PATH: ${{ inputs.perf_workspace }}/migraphx/${{ inputs.organization }}
+  TEST_RESULTS_PATH: /usr/share/migraphx/${{ inputs.organization }}/test-results
+  MIGRAPHX_PATH: /usr/share/migraphx/${{ inputs.organization }}
 
 jobs:
   performance_test:
