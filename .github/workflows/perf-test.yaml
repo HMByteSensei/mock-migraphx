@@ -152,6 +152,8 @@ jobs:
           BASE_HASH=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}} | cut -c 1-6)
           echo "TAG=hip-clang-$BASE_HASH" >> $GITHUB_ENV
 
+          echo "------------CALCULATED HASH IS: hip-clang-$BASE_HASH"
+
       - name: Make PR commit hash dir
         if: ${{ github.event.action != 'closed' }}
         run: |
@@ -171,7 +173,9 @@ jobs:
 
       - name: Run performance tests
         if: ${{ github.event.action != 'closed' }}
-        run: >
+        run: |
+          docker pull alpine:latest
+          docker tag alpine:latest rocm/migraphx-ci-ubuntu:${{ env.TAG }}
           docker run --rm -v ${{ env.TEST_RESULTS_PATH }}/:/data/test-results ubuntu:${{ env.TAG }} /bin/bash -c "echo 'Success, pulled ubuntu dynamically' && mkdir -p /data/test-results/perf-1/test.log && echo '123' > /data/test-results/pr_number.txt"
 
       - name: Save execution state & smuggle payload
