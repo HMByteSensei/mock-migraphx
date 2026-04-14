@@ -149,7 +149,9 @@ jobs:
         id: docker_tag
         run: |
           cd $GITHUB_WORKSPACE
-          BASE_HASH=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}})
+          BASE_HASH=$(echo ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}")
+          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}"
           echo "TAG=hip-clang-$BASE_HASH" >> $GITHUB_ENV
 
           echo "------------CALCULATED HASH IS: hip-clang-$BASE_HASH"
