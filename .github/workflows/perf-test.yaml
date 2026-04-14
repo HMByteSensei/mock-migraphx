@@ -129,11 +129,11 @@ jobs:
 
       - name: Checkout utils
         if: ${{ github.event.action != 'closed' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4.3.1
         with:
-          repository: ${{ inputs.benchmark_utils_repo }}
+          repository: Muhamed-Husic/mock-migraphx
           path: ${{ env.UTILS_DIR }}
-          ssh-key: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+          # token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
 
       - name: Get git SHA
         if: ${{ github.event.action != 'closed' }}
