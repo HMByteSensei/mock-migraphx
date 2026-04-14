@@ -38,15 +38,15 @@ on:
       model_path:
         type: string
         description: Host path to NFS-backed models (ARC runner mount)
-        required: false
+        required: true
       perf_workspace:
         type: string
         description: Writable NFS-backed workspace for reports/scratch (ARC runner mount)
-        required: false
+        required: true
       runs_on:
         type: string
         description: Self-hosted runner label (ARC scale set linux-migraphx-mi250-1)
-        required: false
+        required: true
     secrets:
       BENCHMARK_UTILS_READ_TOKEN:
         description: Token with read access to benchmark utils repo
@@ -58,13 +58,13 @@ env:
   MIOPENTUNE: miopen-dbs/rocm${{ inputs.rocm_release }}
   PR_ID: ${{ github.event.number }}
   BRANCH_NAME: develop
-  TEST_RESULTS_PATH: /usr/share/migraphx/${{ inputs.organization }}/test-results
-  MIGRAPHX_PATH: /usr/share/migraphx/${{ inputs.organization }}
+  TEST_RESULTS_PATH: ${{ inputs.perf_workspace }}/${{ inputs.organization }}/test-results
+  MIGRAPHX_PATH: ${{ inputs.perf_workspace }}/migraphx/${{ inputs.organization }}
 
 jobs:
   performance_test:
     name: MIGraphX Performance
-    runs-on: ubuntu-latest # [self-hosted, "linux-migraphx-mi250-1"]
+    runs-on: [ubuntu-latest]
     outputs:
       git_sha: ${{ steps.git_sha.outputs.git_sha }}
     steps:
@@ -89,36 +89,28 @@ jobs:
           | jq -r '.workflow_runs[] | {id, run_number, conclusion} | select(.conclusion == "cancelled") | {id, run_number}' \
           | jq -s '.[2].id' || true)
           docker stop perf-test-$cancel_id || true
-      
+
       # - name: Get runner ID
-        # run: |
-        #   case "$RUNNER_NAME" in
-        #     "c13-38_0")
-        #       GPU=0
-        #       CPU="0-31"
-        #       ;;
-        #     "c13-38_4")
-        #       GPU=4
-        #       CPU="32-63"
-        #       ;;
-        #     "linux-migraphx-mi250-1")
-        #       GPU=0
-        #       CPU="0-31"
-        #       ;;
-        #     *)
-        #       echo "Unknown RUNNER_ID: $RUNNER_NAME"
-        #       exit 1
-        #       ;;
-        #   esac
-        #   export GPU
-        #   export CPU
-        #   echo "GPU=$GPU" >> $GITHUB_ENV
-        #   echo "CPU=$CPU" >> $GITHUB_ENV
+      #   run: |
+      #     case "$RUNNER_NAME" in
+      #       "${{ inputs.runs_on }}"* | "linux-migraphx-mi250-1"*)
+      #         GPU=0
+      #         CPU="0-31"
+      #         ;;
+      #       *)
+      #         echo "Unknown RUNNER_ID: $RUNNER_NAME"
+      #         exit 1
+      #         ;;
+      #     esac
+      #     export GPU
+      #     export CPU
+      #     echo "GPU=$GPU" >> $GITHUB_ENV
+      #     echo "CPU=$CPU" >> $GITHUB_ENV
       
-      # - name: Set GPU parameters
-      #   if: ${{ github.event.action != 'closed' }}
-      #   run:
-      #     sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
+      - name: Set GPU parameters
+        if: ${{ github.event.action != 'closed' }}
+        run:
+          sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
 
       - name: Update PR env
         if: ${{ github.event_name == 'pull_request_target'}}
@@ -137,97 +129,50 @@ jobs:
 
       - name: Checkout utils
         if: ${{ github.event.action != 'closed' }}
-        uses: actions/checkout@v4.3.1
+        uses: actions/checkout@v6
         with:
-          repository: Muhamed-Husic/mock-migraphx
+          repository: ${{ inputs.benchmark_utils_repo }}
           path: ${{ env.UTILS_DIR }}
-          # token: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+          ssh-key: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
 
-      - name: Calculate HASH
-        if: ${{ github.event.action != 'closed' }}
-        id: hash
-        run: |
-          cd $GITHUB_WORKSPACE
-          git checkout $BRANCH_NAME
-          rocm_hash=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}} | cut -c 1-6)
-          echo "HASH=$rocm_hash" >> $GITHUB_ENV
-      
       - name: Get git SHA
         if: ${{ github.event.action != 'closed' }}
         id: git_sha
         run: |
           cd $GITHUB_WORKSPACE
           git checkout $BRANCH_NAME
-          SHA=$(git log | head -5 | grep -m 1 "^commit" | awk '{print $2}' | cut -c 1-6)
+          SHA=$(git rev-parse --short=6 HEAD)
           echo "git_sha=$SHA" >> $GITHUB_OUTPUT
 
-      - name: Check image hash
+      - name: Calculate Dynamic Docker Tag
         if: ${{ github.event.action != 'closed' }}
-        id: check_hash
+        id: docker_tag
         run: |
-          echo ${{ env.HASH }}
-          echo "DOCKERBASE=rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}" >> $GITHUB_ENV
-          if [ -z "$(docker images -q rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }})" ]; then
-            echo "Hashes not match, base ROCm image will be rebuilt"
-            echo "image=true" >> $GITHUB_ENV
-          else 
-            echo "Hashes match, continue with existing image"
-            echo "image=false" >> $GITHUB_ENV
-          fi
+          cd $GITHUB_WORKSPACE
+          BASE_HASH=$(echo ${{hashFiles('**/Dockerfile', '**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}} | cut -c 1-6)
+          echo "TAG=hip-clang-$BASE_HASH" >> $GITHUB_ENV
 
-      # - name: Rebuild ROCm base
-      #   if: ${{ env.image == 'true' }}
-      #   env:
-      #     ROCM_RELEASE: ${{ inputs.rocm_release }}
-      #     ROCM_BASE: ${{ env.ROCM_BASE }}
-      #     DOCKERIMAGE: rocm-migraphx:${{ inputs.rocm_release }}-${{ env.HASH }}
-      #     BUILD_NAVI: 0
-      #     TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
-      #   run: |
-      #     cd $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts
-      #     ./build_migraphx_docker.sh ${{ inputs.benchmark_utils_repo }} ${{ github.event.pull_request.head.repo.full_name }} ${{ env.BRANCH_NAME }}
-
-      # - name: Docker build
-      #   if: ${{ github.event.action != 'closed' }}
-      #   run: >
-      #     cd $GITHUB_WORKSPACE/${{ env.UTILS_DIR }} && docker build --no-cache
-      #     --build-arg BRANCH=${{ env.BRANCH_NAME }} 
-      #     --build-arg DOCKERBASE=${{ env.DOCKERBASE }}
-      #     --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }}
-      #     --build-arg benchmark_utils_repo=${{ inputs.benchmark_utils_repo }}
-      #     -t "migraphx-rocm:${{ inputs.rocm_release }}-${{ steps.git_sha.outputs.git_sha }}" 
-      #     -f dockerfiles/Daily.Dockerfile .
-
-      # - name: Run performance tests
-      #   if: ${{ github.event.action != 'closed' }}
-      #   run: >
-      #     docker run
-      #     --name perf-test-$GITHUB_RUN_ID
-      #     --cpuset-cpus=${{ env.CPU }}
-      #     -e ROCR_VISIBLE_DEVICES=${{ env.GPU }}
-      #     -e TZ=America/Chicago
-      #     -e TARGET=gpu
-      #     -e PYTHONPATH=/src/AMDMIGraphX/build/lib
-      #     -e USE_RBUILD=1
-      #     --device=/dev/dri
-      #     --device=/dev/kfd
-      #     --network=host
-      #     --group-add=video
-      #     -v /usr/share/migraphx/models:/models:ro
-      #     -v $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts:/migraphx/sh:ro
-      #     -v ${{ env.TEST_RESULTS_PATH }}:/data/test-results
-      #     --workdir /migraphx/sh
-      #     migraphx-rocm:${{ inputs.rocm_release }}-${{ steps.git_sha.outputs.git_sha }} /bin/bash -c "./build_migraphx.sh && ./performance_tests.sh ${{ inputs.model_timeout }}"
-
-      - name: Mock perf test output
+      - name: Make PR commit hash dir
         if: ${{ github.event.action != 'closed' }}
         run: |
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}/perf-data-123
-          echo "Simulation data" > ${{ env.TEST_RESULTS_PATH }}/perf-data-123/results.txt
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123
-          echo "Simulation accuracy" > ${{ env.TEST_RESULTS_PATH }}/accuracy-data-123/results.md
-          echo "Dummy comment" > ${{ env.TEST_RESULTS_PATH }}/temp.md
+          mkdir -p ${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }} || true
+          echo "TEST_RESULTS_PATH=${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }}" >> $GITHUB_ENV
+
+      - name: Little debug
+        if: ${{ github.event.action != 'closed' }}
+        run: |
+          echo "results_path=${{ env.TEST_RESULTS_PATH }}" >> $GITHUB_OUTPUT
+          find ${{ env.TEST_RESULTS_PATH }} -maxdepth 2 -type d | xargs ls -la ||true
+
+      - name: Download Resnet50
+        if: ${{ github.event.action != 'closed' }}
+        run: |
+          wget -P $GITHUB_WORKSPACE/  https://zenodo.org/record/4735647/files/resnet50_v1.onnx 
+
+      - name: Run performance tests
+        if: ${{ github.event.action != 'closed' }}
+        run: >
+          docker run --rm -v ${{ env.TEST_RESULTS_PATH }}/:/data/test-results ubuntu:${{ env.TAG }} /bin/bash -c "echo 'Success, pulled ubuntu dynamically' && mkdir -p /data/test-results/perf-1/test.log && echo '123' > /data/test-results/pr_number.txt"
 
       - name: Save execution state & smuggle payload
         if: ${{ github.event.action != 'closed' }}
@@ -266,7 +211,7 @@ jobs:
       #       docker rmi -f $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}')  || true
       #     fi
       #     if [[ $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 week ago' +%Y-%m-%d)" '$2 < date {print $1}') ]]; then
-      #       docker rmi -f $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '2 weeks ago' +%Y-%m-%d)" '$2 < date {print $1}') || true
+      #       docker rmi -f $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 weeks ago' +%Y-%m-%d)" '$2 < date {print $1}') || true
       #     fi
       #     docker image prune -f  || true
 
