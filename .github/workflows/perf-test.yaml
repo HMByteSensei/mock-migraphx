@@ -107,10 +107,10 @@ jobs:
       #     echo "GPU=$GPU" >> $GITHUB_ENV
       #     echo "CPU=$CPU" >> $GITHUB_ENV
       
-      - name: Set GPU parameters
-        if: ${{ github.event.action != 'closed' }}
-        run:
-          sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
+      # - name: Set GPU parameters
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run:
+      #     sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
 
       - name: Update PR env
         if: ${{ github.event_name == 'pull_request_target'}}
