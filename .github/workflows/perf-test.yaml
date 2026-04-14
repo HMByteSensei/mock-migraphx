@@ -176,7 +176,7 @@ jobs:
         run: |
           docker pull alpine:latest
           docker tag alpine:latest rocm/migraphx-ci-ubuntu:${{ env.TAG }}
-          docker run --rm -v ${{ env.TEST_RESULTS_PATH }}/:/data/test-results ubuntu:${{ env.TAG }} /bin/bash -c "echo 'Success, pulled ubuntu dynamically' && mkdir -p /data/test-results/perf-1/test.log && echo '123' > /data/test-results/pr_number.txt"
+          docker run --rm -v ${{ env.TEST_RESULTS_PATH }}/:/data/test-results rocm/migraphx-ci-ubuntu:${{ env.TAG }} /bin/bash -c "echo 'Success, pulled ubuntu dynamically' && mkdir -p /data/test-results/perf-1/test.log && echo '123' > /data/test-results/pr_number.txt"
 
       - name: Save execution state & smuggle payload
         if: ${{ github.event.action != 'closed' }}
