@@ -1,0 +1,33 @@
+name: SSH Key Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-ssh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout private repo
+        uses: actions/checkout@v4
+        with:
+          repository: Muhamed-Husic/PrivateTestRepo
+          ssh-key: ${{ secrets.SECRETTOPRIVATEREPO }}
+          path: test-repo
+
+      - name: Verify read access
+        run: |
+          ls -la test-repo
+          echo "READING"
+          cat test-repo/README.md
+          cat test-repo/script.md
+
+      - name: Attempt write
+        run: |
+          cd test-repo
+          echo "test" > test.txt
+          git add test.txt
+          git config user.name "SSH Test Bot"
+          git config user.email "test@example.com"
+          git commit -m "Test commit"
+          git push origin HEAD:main
