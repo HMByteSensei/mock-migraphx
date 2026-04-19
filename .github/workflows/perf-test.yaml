@@ -204,28 +204,28 @@ jobs:
           ref: ${{ env.BRANCH_NAME }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
 
-      - name: Checkout utils
-        if: ${{ github.event.action != 'closed' }}
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ inputs.benchmark_utils_repo }}
-          path: ${{ env.UTILS_DIR }}
-          ssh-key: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
+      # - name: Checkout utils
+      #   if: ${{ github.event.action != 'closed' }}
+      #   uses: actions/checkout@v6
+      #   with:
+      #     repository: ${{ inputs.benchmark_utils_repo }}
+      #     path: ${{ env.UTILS_DIR }}
+      #     ssh-key: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}
 
-      - name: Get git SHA
-        if: ${{ github.event.action != 'closed' }}
-        id: git_sha
-        run: |
-          cd $GITHUB_WORKSPACE
-          git checkout $BRANCH_NAME
-          SHA=$(git rev-parse --short=6 HEAD)
-          echo "git_sha=$SHA" >> $GITHUB_OUTPUT
+      # - name: Get git SHA
+      #   if: ${{ github.event.action != 'closed' }}
+      #   id: git_sha
+      #   run: |
+      #     cd $GITHUB_WORKSPACE
+      #     git checkout $BRANCH_NAME
+      #     SHA=$(git rev-parse --short=6 HEAD)
+      #     echo "git_sha=$SHA" >> $GITHUB_OUTPUT
 
-      - name: Make PR commit hash dir
-        if: ${{ github.event.action != 'closed' }}
-        run: |
-          mkdir -p ${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }} || true
-          echo "TEST_RESULTS_PATH=${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }}" >> $GITHUB_ENV
+      # - name: Make PR commit hash dir
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run: |
+      #     mkdir -p ${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }} || true
+      #     echo "TEST_RESULTS_PATH=${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }}" >> $GITHUB_ENV
 
       # - name: Little debug
       #   if: ${{ github.event.action != 'closed' }}
