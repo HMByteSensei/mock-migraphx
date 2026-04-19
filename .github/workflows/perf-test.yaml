@@ -108,7 +108,7 @@ jobs:
         if: ${{ github.event.action != 'closed' }}
         run: |
           # TAG="${{ steps.image_hash.outputs.imagetag }}"
-          TAG="1fd504c89985eaea3e03e3756304c375ad8af66324e1e1b7a1735643a879b155"
+          TAG="hip-clang-1fd504c89985eaea3e03e3756304c375ad8af66324e1e1b7a1735643a879b155"
           echo "Polling DockerHub for rocm/migraphx-ci-ubuntu:$TAG"
           for i in {1..40}; do
             if docker manifest inspect rocm/migraphx-ci-ubuntu:$TAG > /dev/null 2>&1; then
@@ -141,6 +141,12 @@ jobs:
     outputs:
       git_sha: ${{ steps.git_sha.outputs.git_sha }}
     steps:
+      - name: Verifz artifact passing
+        run: |
+          echo "Did artifacts download correctly?"
+          ls -la ${{ github.workspace }}/deb-package
+          cat ${{ github.workspace }}/deb-package/*.deb || echo "No deb files found!"
+
       - name: Verify PR trust level
         if: ${{ github.event_name == 'pull_request_target' }}
         env:
@@ -191,10 +197,10 @@ jobs:
       #     echo "CPU=$CPU" >> $GITHUB_ENV
       #     echo "MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
 
-      - name: Set GPU parameters
-        if: ${{ github.event.action != 'closed' }}
-        run:
-          sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
+      # - name: Set GPU parameters
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run:
+      #     sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
 
       - name: Checkout code
         if: ${{ github.event.action != 'closed' }}
@@ -304,21 +310,21 @@ jobs:
           name: performance-run-data
           path: ${{ env.TEST_RESULTS_PATH }}
 
-      - name: Delete old images/containers
-        if: ${{ github.event_name == 'schedule' }}
-        run: |
-          docker container prune -f  || true
-          if [[ $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}') ]]; then
-            docker rmi -f $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}')  || true
-          fi
-          if [[ $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 week ago' +%Y-%m-%d)" '$2 < date {print $1}') ]]; then
-            docker rmi -f $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 weeks ago' +%Y-%m-%d)" '$2 < date {print $1}') || true
-          fi
-          docker image prune -f  || true
+      # - name: Delete old images/containers
+      #   if: ${{ github.event_name == 'schedule' }}
+      #   run: |
+      #     docker container prune -f  || true
+      #     if [[ $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}') ]]; then
+      #       docker rmi -f $(docker images --filter=reference="migraphx-rocm:${{ inputs.rocm_release }}-*" | awk 'NR>1 {print $3}')  || true
+      #     fi
+      #     if [[ $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 week ago' +%Y-%m-%d)" '$2 < date {print $1}') ]]; then
+      #       docker rmi -f $(docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" | grep "rocm-migraphx:${{ inputs.rocm_release }}-"|awk -v date="$(date -d '1 weeks ago' +%Y-%m-%d)" '$2 < date {print $1}') || true
+      #     fi
+      #     docker image prune -f  || true
 
-      - name: Reset GPU parameters to default
-        if: ${{ always() && github.event.action != 'closed' }}
-        run: sudo rocm-smi --device ${{ env.GPU }} --resetclocks
+      # - name: Reset GPU parameters to default
+      #   if: ${{ always() && github.event.action != 'closed' }}
+      #   run: sudo rocm-smi --device ${{ env.GPU }} --resetclocks
 
       - name: Clean closed PR data
         if: ${{ github.event.action == 'closed' }}
