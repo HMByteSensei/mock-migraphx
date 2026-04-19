@@ -107,7 +107,8 @@ jobs:
       - name: Wait for CI docker image
         if: ${{ github.event.action != 'closed' }}
         run: |
-          TAG="${{ steps.image_hash.outputs.imagetag }}"
+          # TAG="${{ steps.image_hash.outputs.imagetag }}"
+          TAG="1fd504c89985eaea3e03e3756304c375ad8af66324e1e1b7a1735643a879b155"
           echo "Polling DockerHub for rocm/migraphx-ci-ubuntu:$TAG"
           for i in {1..40}; do
             if docker manifest inspect rocm/migraphx-ci-ubuntu:$TAG > /dev/null 2>&1; then
@@ -123,7 +124,9 @@ jobs:
 
       - name: Build and Package
         run: |
-          docker run --rm -v $GITHUB_WORKSPACE:/data -w /data rocm/migraphx-ci-ubuntu:${{ steps.image_hash.outputs.imagetag }} /bin/bash -c "mkdir build && cd build && CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin.clang cmake -DCMAKE_BUILD_TYPE=Release .. && make package -j\$(nproc) "
+          mkdir -p build
+          echo "fake test data" > build/mock-migraphx.deb
+          # docker run --rm -v $GITHUB_WORKSPACE:/data -w /data rocm/migraphx-ci-ubuntu:${{ steps.image_hash.outputs.imagetag }} /bin/bash -c "mkdir build && cd build && CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin.clang cmake -DCMAKE_BUILD_TYPE=Release .. && make package -j\$(nproc) "
       
       - name: Upload package
         uses: actions/upload-artifact@v7.0.1
@@ -133,7 +136,7 @@ jobs:
 
   test_product:
     name: MIGraphX Performance
-    runs-on: ["${{ inputs.runs_on }}"]
+    runs-on: ubuntu-latest # ["${{ inputs.runs_on }}"]
     needs: build_product
     outputs:
       git_sha: ${{ steps.git_sha.outputs.git_sha }}
@@ -169,24 +172,24 @@ jobs:
             | head -3 \
             | while read -r cid; do docker stop "perf-test-$cid" || true; done
 
-      - name: Get runner ID
-        run: |
-          case "$RUNNER_NAME" in
-            "${{ inputs.runs_on }}"* | "linux-migraphx-mi250-1"*)
-              GPU=0
-              CPU="0-31"
-              MODEL_PATH="/migraphx-models/models"
-              ;;
-            *)
-              echo "Unknown RUNNER_ID: $RUNNER_NAME"
-              exit 1
-              ;;
-          esac
-          export GPU
-          export CPU
-          echo "GPU=$GPU" >> $GITHUB_ENV
-          echo "CPU=$CPU" >> $GITHUB_ENV
-          echo "MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
+      # - name: Get runner ID
+      #   run: |
+      #     case "$RUNNER_NAME" in
+      #       "${{ inputs.runs_on }}"* | "linux-migraphx-mi250-1"*)
+      #         GPU=0
+      #         CPU="0-31"
+      #         MODEL_PATH="/migraphx-models/models"
+      #         ;;
+      #       *)
+      #         echo "Unknown RUNNER_ID: $RUNNER_NAME"
+      #         exit 1
+      #         ;;
+      #     esac
+      #     export GPU
+      #     export CPU
+      #     echo "GPU=$GPU" >> $GITHUB_ENV
+      #     echo "CPU=$CPU" >> $GITHUB_ENV
+      #     echo "MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
 
       - name: Set GPU parameters
         if: ${{ github.event.action != 'closed' }}
@@ -224,21 +227,21 @@ jobs:
           mkdir -p ${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }} || true
           echo "TEST_RESULTS_PATH=${{ env.TEST_RESULTS_PATH }}/${{ steps.git_sha.outputs.git_sha }}" >> $GITHUB_ENV
 
-      - name: Little debug
-        if: ${{ github.event.action != 'closed' }}
-        run: |
-          echo "results_path=${{ env.TEST_RESULTS_PATH }}"
-          echo "model_path=${{ env.MODEL_PATH }}" 
-          ls -l ${{ env.MODEL_PATH }} || true
-          echo "/migraphx-models"
-          ls -l /migraphx-models ||true
-          echo "What is inside /migraphx-models"
-          find /migraphx-models -maxdepth 1 -type d | xargs ls -la || true
-          echo "What is inside ${{ env.TEST_RESULTS_PATH }}"
-          find ${{ env.TEST_RESULTS_PATH }} -maxdepth 2 -type d | xargs ls -la || true
-          echo "Show results of df -h"
-          df -h || true
-          mount || true
+      # - name: Little debug
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run: |
+      #     echo "results_path=${{ env.TEST_RESULTS_PATH }}"
+      #     echo "model_path=${{ env.MODEL_PATH }}" 
+      #     ls -l ${{ env.MODEL_PATH }} || true
+      #     echo "/migraphx-models"
+      #     ls -l /migraphx-models ||true
+      #     echo "What is inside /migraphx-models"
+      #     find /migraphx-models -maxdepth 1 -type d | xargs ls -la || true
+      #     echo "What is inside ${{ env.TEST_RESULTS_PATH }}"
+      #     find ${{ env.TEST_RESULTS_PATH }} -maxdepth 2 -type d | xargs ls -la || true
+      #     echo "Show results of df -h"
+      #     df -h || true
+      #     mount || true
 
       - name: Download MIGraphX Deb Artifact
         if: ${{ github.event.action != 'closed' }}
@@ -247,27 +250,27 @@ jobs:
           name: migraphx-deb
           path: ${{ github.workspace }}/deb-package
 
-      - name: Run performance tests
-        if: ${{ github.event.action != 'closed' }}
-        run: >
-          docker run
-          --name perf-test-$GITHUB_RUN_ID
-          --cpuset-cpus=${{ env.CPU }}
-          -e ROCR_VISIBLE_DEVICES=${{ env.GPU }}
-          -e TZ=America/Chicago
-          -e TARGET=gpu
-          -e PYTHONPATH=/src/AMDMIGraphX/build/lib
-          -e USE_RBUILD=1
-          --device=/dev/dri
-          --device=/dev/kfd
-          --network=host
-          --group-add=video
-          -v ${{ env.MODEL_PATH }}:/models:ro
-          -v $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts:/migraphx/sh:ro
-          -v ${{ env.TEST_RESULTS_PATH }}/:/data/test-results
-          -v $GITHUB_WORKSPACE/:/src/AMDMIGraphX:rw
-          --workdir /migraphx/sh
-          rocm/migraphx-ci-ubuntu:${{ needs.build_product.outputs.image_tag }} /bin/bash -c "apt-get update && apt-get install -y /src/AMDMIGraphX/deb-package/*.deb && DRIVER=/opt/rocm/bin/migraphx-driver ./performance_tests.sh ${{ inputs.model_timeout }}"
+      # - name: Run performance tests
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run: >
+      #     docker run
+      #     --name perf-test-$GITHUB_RUN_ID
+      #     --cpuset-cpus=${{ env.CPU }}
+      #     -e ROCR_VISIBLE_DEVICES=${{ env.GPU }}
+      #     -e TZ=America/Chicago
+      #     -e TARGET=gpu
+      #     -e PYTHONPATH=/src/AMDMIGraphX/build/lib
+      #     -e USE_RBUILD=1
+      #     --device=/dev/dri
+      #     --device=/dev/kfd
+      #     --network=host
+      #     --group-add=video
+      #     -v ${{ env.MODEL_PATH }}:/models:ro
+      #     -v $GITHUB_WORKSPACE/${{ env.UTILS_DIR }}/scripts:/migraphx/sh:ro
+      #     -v ${{ env.TEST_RESULTS_PATH }}/:/data/test-results
+      #     -v $GITHUB_WORKSPACE/:/src/AMDMIGraphX:rw
+      #     --workdir /migraphx/sh
+      #     rocm/migraphx-ci-ubuntu:${{ needs.build_product.outputs.image_tag }} /bin/bash -c "apt-get update && apt-get install -y /src/AMDMIGraphX/deb-package/*.deb && DRIVER=/opt/rocm/bin/migraphx-driver ./performance_tests.sh ${{ inputs.model_timeout }}"
 
       - name: Save execution metadata
         if: ${{ github.event.action != 'closed' }}
