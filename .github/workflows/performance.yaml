@@ -84,14 +84,9 @@ jobs:
       model_path: ${{ steps.read_config.outputs.model_path }}
       perf_workspace: ${{ steps.read_config.outputs.perf_workspace }}
       runner_label: ${{ steps.read_config.outputs.runner_label }}
-      image_tag: ${{ steps.image_hash.outputs.imagetag }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - name: Create Image Tag
-        id: image_hash
-        run: |
-          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
       - name: read_config
         id: read_config
         env:
@@ -152,6 +147,5 @@ jobs:
       model_path: ${{ github.event.inputs.model_path || needs.get_config.outputs.model_path }}
       perf_workspace: ${{ github.event.inputs.perf_workspace || needs.get_config.outputs.perf_workspace }}
       runs_on: ${{ github.event.inputs.runner_label || needs.get_config.outputs.runner_label }}
-      image_tag: ${{ needs.get_config.outputs.image_tag }}
     secrets:
       BENCHMARK_UTILS_READ_TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}

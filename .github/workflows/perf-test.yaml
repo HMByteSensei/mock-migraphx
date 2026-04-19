@@ -47,10 +47,6 @@ on:
         type: string
         description: Self-hosted runner label (ARC scale set linux-migraphx-mi250-1)
         required: true
-      image_tag:
-        type: string
-        description: Docker image tag computed from ci.yaml hash files
-        required: true
     secrets:
       BENCHMARK_UTILS_READ_TOKEN:
         description: Token with read access to benchmark utils repo
@@ -67,6 +63,8 @@ jobs:
   build_product:
     name: Build MIGraphX
     runs-on: ROCM-Ubuntu
+    outputs:
+      image_tag: ${{ steps.image_hash.outputs.imagetag }}
     steps:
       - name: Update PR env
         if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'schedule'}}
@@ -86,9 +84,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.BRANCH_NAME }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      - name: Create Image Tag
+        id: image_hash
+        run: |
+          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
       - name: Build and Package
         run: |
-          docker run --rm -v $GITHUB_WORKSPACE:/data -w /data rocm/migraphx-ci-ubuntu:${{ inputs.image_tag }} /bin/bash -c "mkdir build && cd build && CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin.clang cmake -DCMAKE_BUILD_TYPE=Release .. && make package -j\$(nproc) "
+          docker run --rm -v $GITHUB_WORKSPACE:/data -w /data rocm/migraphx-ci-ubuntu:${{ steps.image_hash.outputs.imagetag }} /bin/bash -c "mkdir build && cd build && CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin.clang cmake -DCMAKE_BUILD_TYPE=Release .. && make package -j\$(nproc) "
       - name: Upload package
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -156,6 +158,14 @@ jobs:
         run:
           sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
 
+      - name: Checkout code
+        if: ${{ github.event.action != 'closed' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ env.BRANCH_NAME }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+
       - name: Checkout utils
         if: ${{ github.event.action != 'closed' }}
         uses: actions/checkout@v6
@@ -222,7 +232,7 @@ jobs:
           -v ${{ env.TEST_RESULTS_PATH }}/:/data/test-results
           -v $GITHUB_WORKSPACE/:/src/AMDMIGraphX:rw
           --workdir /migraphx/sh
-          rocm/migraphx-ci-ubuntu:${{ inputs.image_tag }} /bin/bash -c "apt-get update && apt-get install -y /src/AMDMIGraphX/deb-package/*.deb && DRIVER=/opt/rocm/bin/migraphx-driver ./performance_tests.sh ${{ inputs.model_timeout }}"
+          rocm/migraphx-ci-ubuntu:${{ needs.build_product.outputs.image_tag }} /bin/bash -c "apt-get update && apt-get install -y /src/AMDMIGraphX/deb-package/*.deb && DRIVER=/opt/rocm/bin/migraphx-driver ./performance_tests.sh ${{ inputs.model_timeout }}"
 
       - name: Save execution metadata
         if: ${{ github.event.action != 'closed' }}
