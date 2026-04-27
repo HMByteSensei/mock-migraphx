@@ -207,7 +207,7 @@ jobs:
       - name: Testing race condition
         run: |
           echo "Branch ${BRANCH_NAME}"
-          echo "Repo ${github.event.pull_request.head.repo.full_name}"
+          echo "Repo ${{ github.event.pull_request.head.repo.full_name }}"
           ls -la $GITHUB_WORKSPACE
           pwd
           echo "Content of test.txt:"
