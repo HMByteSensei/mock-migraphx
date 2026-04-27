@@ -210,7 +210,7 @@ jobs:
           pwd
           echo "Content of test.txt:"
           echo "------------------"
-          cat test.txt || echo "test.txt not found"
+          cat $GITHUB_WORKSPACE/test.txt || echo "test.txt not found"
           echo "------------------"
 
       # - name: Checkout utils
