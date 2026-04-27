@@ -99,28 +99,28 @@ jobs:
           swap-storage: true
           docker-images: true
 
-      - name: Create Image Tag
-        id: image_hash
-        run: |
-          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+      # - name: Create Image Tag
+      #   id: image_hash
+      #   run: |
+      #     echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
       
-      - name: Wait for CI docker image
-        if: ${{ github.event.action != 'closed' }}
-        run: |
-          # TAG="${{ steps.image_hash.outputs.imagetag }}"
-          TAG="hip-clang-1fd504c89985eaea3e03e3756304c375ad8af66324e1e1b7a1735643a879b155"
-          echo "Polling DockerHub for rocm/migraphx-ci-ubuntu:$TAG"
-          for i in {1..40}; do
-            if docker manifest inspect rocm/migraphx-ci-ubuntu:$TAG > /dev/null 2>&1; then
-              echo "Docker image is available."
-              exit 0
-            else
-              echo "Waiting 60 sec... Attempt $i/40"
-              sleep 60
-            fi
-          done
-          echo "TImeout, waiting for CI to build docker image."
-          exit 1
+      # - name: Wait for CI docker image
+      #   if: ${{ github.event.action != 'closed' }}
+      #   run: |
+      #     # TAG="${{ steps.image_hash.outputs.imagetag }}"
+      #     TAG="hip-clang-1fd504c89985eaea3e03e3756304c375ad8af66324e1e1b7a1735643a879b155"
+      #     echo "Polling DockerHub for rocm/migraphx-ci-ubuntu:$TAG"
+      #     for i in {1..40}; do
+      #       if docker manifest inspect rocm/migraphx-ci-ubuntu:$TAG > /dev/null 2>&1; then
+      #         echo "Docker image is available."
+      #         exit 0
+      #       else
+      #         echo "Waiting 60 sec... Attempt $i/40"
+      #         sleep 60
+      #       fi
+      #     done
+      #     echo "TImeout, waiting for CI to build docker image."
+      #     exit 1
 
       - name: Build and Package
         run: |
