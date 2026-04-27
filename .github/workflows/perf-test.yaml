@@ -206,6 +206,8 @@ jobs:
 
       - name: Testing race condition
         run: |
+          ls -la $GITHUB_WORKSPACE
+          pwd
           echo "Content of test.txt:"
           echo "------------------"
           cat test.txt || echo "test.txt not found"
