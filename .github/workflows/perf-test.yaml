@@ -195,12 +195,11 @@ jobs:
       #   if: ${{ github.event.action != 'closed' }}
       #   run:
       #     sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
-
-        - name: Apply PR env from Build
-        if: ${{ needs.build_product.outputs.branch_name != '' }}
-        run: |
-          echo "BRANCH_NAME=${{ needs.build_product.outputs.branch_name }}" >> $GITHUB_ENV
-          echo "TEST_RESULTS_PATH=${{ needs.build_product.outputs.test_results_path }}" >> $GITHUB_ENV
+      - name: Apply PR env from Build
+      if: ${{ needs.build_product.outputs.branch_name != '' }}
+      run: |
+        echo "BRANCH_NAME=${{ needs.build_product.outputs.branch_name }}" >> $GITHUB_ENV
+        echo "TEST_RESULTS_PATH=${{ needs.build_product.outputs.test_results_path }}" >> $GITHUB_ENV
 
       - name: Checkout code
         if: ${{ github.event.action != 'closed' }}
