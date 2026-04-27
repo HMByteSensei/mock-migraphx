@@ -257,13 +257,13 @@ jobs:
         run: |
           echo "Branch ${BRANCH_NAME}"
           echo "Repo ${{ github.event.pull_request.head.repo.full_name }}"
-          ls -la $GITHUB_WORKSPACE
+          ls -l $GITHUB_WORKSPACE
           pwd
           echo "Content of test.txt:"
           echo "------------------"
-          cat test.txt || echo "test.txt not found"
+          cat $GITHUB_WORKSPACE/test.txt || echo "test.txt not found"
           echo "------------------"
-          ls -la
+          ls -l
 
       # - name: Checkout utils
       #   if: ${{ github.event.action != 'closed' }}
