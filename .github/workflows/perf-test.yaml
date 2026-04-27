@@ -65,8 +65,11 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       image_tag: ${{ steps.image_hash.outputs.imagetag }}
+      branch_name: ${{ steps.pr_env.outputs.branch_name }}
+      test_results_path: ${{ steps.pr_env.outputs.test_results_path }}
     steps:
       - name: Update PR env
+        id: pr_env
         if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'schedule'}}
         env:
           HEAD_REF: ${{ github.head_ref }}
@@ -77,6 +80,9 @@ jobs:
           sanitized_branch_name=$(echo "$HEAD_REF" | sed 's/[^a-zA-Z0-9._\/]/-/g')
           echo "BRANCH_NAME=$sanitized_branch_name" >> $GITHUB_ENV
           echo "TEST_RESULTS_PATH=$(echo "$TEST_RESULTS_PATH-$PR_ID")" >> $GITHUB_ENV
+
+          echo "branch_name=$sanitized_branch_name" >> $GITHUB_OUTPUT
+          echo "test_results_path=$(echo "$TEST_RESULTS_PATH-$PR_ID")" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         if: ${{ github.event.action != 'closed' }}
@@ -101,34 +107,36 @@ jobs:
 
       # - name: Create Image Tag
       #   id: image_hash
+      #   if: ${{ github.event.action != 'closed' }}
       #   run: |
+      #     # NOTE: Changes to this line must also be reflected in ROCm/AMDMIGraphX/.github/workflows/ci.yaml to keep behavior consistent
       #     echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
       
+      # # This step polls DockerHub for the CI image built by the ROCm/AMDMIGraphX/.github/workflows/ci.yaml workflow (build_image job)
       # - name: Wait for CI docker image
       #   if: ${{ github.event.action != 'closed' }}
       #   run: |
-      #     # TAG="${{ steps.image_hash.outputs.imagetag }}"
-      #     TAG="hip-clang-1fd504c89985eaea3e03e3756304c375ad8af66324e1e1b7a1735643a879b155"
+      #     TAG="${{ steps.image_hash.outputs.imagetag }}"
       #     echo "Polling DockerHub for rocm/migraphx-ci-ubuntu:$TAG"
-      #     for i in {1..40}; do
+      #     for i in {1..120}; do
       #       if docker manifest inspect rocm/migraphx-ci-ubuntu:$TAG > /dev/null 2>&1; then
       #         echo "Docker image is available."
       #         exit 0
       #       else
-      #         echo "Waiting 60 sec... Attempt $i/40"
+      #         echo "Waiting 60 sec... Attempt $i/120"
       #         sleep 60
       #       fi
       #     done
-      #     echo "TImeout, waiting for CI to build docker image."
+      #     echo "Timeout, waiting for CI to build docker image."
       #     exit 1
 
       - name: Build and Package
+        if: ${{ github.event.action != 'closed' }}
         run: |
-          mkdir -p build
-          echo "fake test data" > build/mock-migraphx.deb
-          # docker run --rm -v $GITHUB_WORKSPACE:/data -w /data rocm/migraphx-ci-ubuntu:${{ steps.image_hash.outputs.imagetag }} /bin/bash -c "mkdir build && cd build && CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCMAKE_BUILD_TYPE=Release .. && make package -j\$(nproc) "
+          docker run --rm -v $GITHUB_WORKSPACE:/data -w /data rocm/migraphx-ci-ubuntu:${{ steps.image_hash.outputs.imagetag }} /bin/bash -c "git config --global --add safe.directory . && mkdir build && cd build && CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCMAKE_BUILD_TYPE=Release -DGPU_TARGETS=gfx90a -DMIGRAPHX_ENABLE_GPU=On .. && make package -j\$(nproc) "
       
       - name: Upload package
+        if: ${{ github.event.action != 'closed' }}
         uses: actions/upload-artifact@v7.0.1
         with:
           name: migraphx-deb
@@ -136,7 +144,7 @@ jobs:
 
   test_product:
     name: MIGraphX Performance
-    runs-on: ubuntu-latest # ["${{ inputs.runs_on }}"]
+    runs-on: ["${{ inputs.runs_on }}"]
     needs: build_product
     outputs:
       git_sha: ${{ steps.git_sha.outputs.git_sha }}
@@ -178,6 +186,7 @@ jobs:
       #       "${{ inputs.runs_on }}"* | "linux-migraphx-mi250-1"*)
       #         GPU=0
       #         CPU="0-31"
+      #         MEM_NODE=0
       #         MODEL_PATH="/migraphx-models/models"
       #         ;;
       #       *)
@@ -187,19 +196,54 @@ jobs:
       #     esac
       #     export GPU
       #     export CPU
+      #     export MEM_NODE
       #     echo "GPU=$GPU" >> $GITHUB_ENV
       #     echo "CPU=$CPU" >> $GITHUB_ENV
+      #     echo "MEM_NODE=$MEM_NODE" >> $GITHUB_ENV
       #     echo "MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
 
-      # - name: Set GPU parameters
+      # # MI250 (gfx90a) stable-perf setup:
+      # # - setperfdeterminism caps SCLK at a sustainable boost frequency and
+      # #   disables dynamic clock transitions, which is the recommended way to
+      # #   eliminate run-to-run variance from DPM / thermal throttling.
+      # # - Pin MCLK to the highest DPM state so HBM bandwidth is constant.
+      # # - Raise the power cap to package TDP so power isn't the limiter.
+      # #
+      # # NOTE: this workflow runs on a k8s ARC victim pod which generally does
+      # # NOT have the privileges (CAP_SYS_ADMIN / sysfs write) needed by these
+      # # rocm-smi calls. Do not fail the run if any step is rejected -- record
+      # # the error so the priv setup can be fixed later, and continue with
+      # # whatever clock state the runner gave us.
+      # - name: Set GPU parameters (MI250 deterministic, best-effort)
       #   if: ${{ github.event.action != 'closed' }}
-      #   run:
-      #     sudo rocm-smi --device ${{ env.GPU }} --setsrange 700 800 --autorespond y
+      #   continue-on-error: true
+      #   env:
+      #     DETERMINISM_SCLK_MHZ: "1700"
+      #     POWER_CAP_W: "560"
+      #   run: |
+      #     # Intentionally NOT using `set -e`: every rocm-smi call is best-effort
+      #     # because the k8s victim pod may lack privileges to write sysfs.
+      #     run_smi() {
+      #       local desc="$1"; shift
+      #       echo "::group::rocm-smi: $desc"
+      #       if ! sudo rocm-smi --device ${{ env.GPU }} "$@" --autorespond y 2>&1; then
+      #         echo "::warning::rocm-smi '$desc' failed (likely insufficient privileges on this runner) -- continuing without it"
+      #       fi
+      #       echo "::endgroup::"
+      #     }
+      #     run_smi "set perf determinism @ ${DETERMINISM_SCLK_MHZ} MHz" --setperfdeterminism "${DETERMINISM_SCLK_MHZ}"
+      #     run_smi "pin MCLK to highest DPM state"                      --setmclk 3
+      #     run_smi "raise power cap to ${POWER_CAP_W}W"                 --setpoweroverdrive "${POWER_CAP_W}"
+      #     # Always-readable status; useful even when the writes above were rejected.
+      #     sudo rocm-smi --device ${{ env.GPU }} --showclocks --showpower --showtemp 2>&1 || \
+      #       rocm-smi --device ${{ env.GPU }} --showclocks --showpower --showtemp 2>&1 || \
+      #       echo "::warning::could not read GPU status via rocm-smi"
+
       - name: Apply PR env from Build
-      if: ${{ needs.build_product.outputs.branch_name != '' }}
-      run: |
-        echo "BRANCH_NAME=${{ needs.build_product.outputs.branch_name }}" >> $GITHUB_ENV
-        echo "TEST_RESULTS_PATH=${{ needs.build_product.outputs.test_results_path }}" >> $GITHUB_ENV
+        if: ${{ needs.build_product.outputs.branch_name != '' }}
+        run: |
+          echo "BRANCH_NAME=${{ needs.build_product.outputs.branch_name }}" >> $GITHUB_ENV
+          echo "TEST_RESULTS_PATH=${{ needs.build_product.outputs.test_results_path }}" >> $GITHUB_ENV
 
       - name: Checkout code
         if: ${{ github.event.action != 'closed' }}
