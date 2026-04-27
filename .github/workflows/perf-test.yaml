@@ -204,6 +204,13 @@ jobs:
           ref: ${{ env.BRANCH_NAME }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
 
+      - name: Testing race condition
+        run: |
+          echo "Content of test.txt:"
+          echo "------------------"
+          cat test.txt || echo "test.txt not found"
+          echo "------------------"
+
       # - name: Checkout utils
       #   if: ${{ github.event.action != 'closed' }}
       #   uses: actions/checkout@v6
