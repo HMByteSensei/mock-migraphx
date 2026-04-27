@@ -245,13 +245,25 @@ jobs:
           echo "BRANCH_NAME=${{ needs.build_product.outputs.branch_name }}" >> $GITHUB_ENV
           echo "TEST_RESULTS_PATH=${{ needs.build_product.outputs.test_results_path }}" >> $GITHUB_ENV
 
+      - name: DEBUG1
+        run: |
+          echo "BRANCH NAME ENV: ${{ env.BRANCH_NAME }}"
+          echo "needs output: ${{ needs.build_product.outputs.branch_name }}"
+          echo "git.head_ref: ${{ github.head_ref }}"
+
       - name: Checkout code
         if: ${{ github.event.action != 'closed' }}
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ needs.build_product.outputs.branch_name || 'develop' }}
+          ref: ${{ env.BRANCH_NAME }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+
+      - name: DEBUG2
+        run: |
+          echo "BRANCH NAME ENV: ${{ env.BRANCH_NAME }}"
+          echo "needs output: ${{ needs.build_product.outputs.branch_name }}"
+          echo "git.head_ref: ${{ github.head_ref }}"
 
       - name: Testing race condition
         run: |
